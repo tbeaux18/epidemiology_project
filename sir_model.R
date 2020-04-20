@@ -22,6 +22,7 @@ build_data_url <- function(latest_date) {
   return(dates_url_list)
 }
 
+# pass in a url to scrape 
 grab_covid_data <- function(web_url) {
   webpage_url <- web_url
   webpage <- xml2::read_html(webpage_url)
@@ -40,7 +41,7 @@ parse_chicago_df <- function(list_of_dfs, suffix_dates) {
     mutate(
       suffix_dates = as.Date(suffix_dates, "%Y-%m-%d"), 
       incidence_count = parse_number(incidence_count)
-    )
+    ) %>% set_colnames(c("date", "covid_count"))
   return(date_case_count_df)
 }
 
@@ -52,7 +53,7 @@ chi_cov_data <- lapply(chicago_urls[[2]], FUN=grab_covid_data)
 latest_chicago_data <- parse_chicago_df(chi_cov_data, chicago_urls[[1]])
 
 latest_chicago_data %>%
-  ggplot(aes(x = suffix_dates, y = incidence_count)) +
+  ggplot(aes(x = date, y = covid_count)) +
   geom_line() + geom_point()
 
 
@@ -64,6 +65,12 @@ latest_chicago_data %>%
 ################################################################
 
 library(EpiModel)
+
+fit1 <- lm(log(measles)~biweek, data=latest_chicago_data)
+summary(fit1)
+
+
+
 
 
 # ICM models EpiModel Tutorial
