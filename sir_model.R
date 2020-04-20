@@ -1,6 +1,68 @@
+################################################################
+
+# Parses the first table from the chicago daily reports of COVID
+# cases. Change the date in %Y-%m-%d format for building the
+# urls to pass into the html scraping functions
+
+################################################################
 
 library(tidyverse)
 library(magrittr)
+library(xml2)
+
+# date in "2020-04-##" format
+build_data_url <- function(latest_date) {
+  base_url <- "https://www.chicago.gov/city/en/sites/covid-19/home/latest-data/"
+  suffix_dates <- seq(as.Date("2020-03-23"), as.Date(latest_date), by="days")
+  dates_html <- sapply(suffix_dates, paste, "html", sep=".")
+  complete_urls <- sapply(base_url, paste, dates_html, sep="")
+  dates_url_list <- list()
+  dates_url_list[[1]] <- suffix_dates
+  dates_url_list[[2]] <- complete_urls
+  return(dates_url_list)
+}
+
+grab_covid_data <- function(web_url) {
+  webpage_url <- web_url
+  webpage <- xml2::read_html(webpage_url)
+  covid_data <- rvest::html_table(webpage)[[1]] %>%
+    tibble::as_tibble(.name_repair = "unique") # repair the repeated columns
+  return(as.data.frame(covid_data))
+}
+
+parse_chicago_df <- function(list_of_dfs, suffix_dates) {
+  incidence_count <- c(rep(NA, length(list_of_dfs)))
+  for (i in 1:length(list_of_dfs)){
+    date_df <- chi_cov_data[[i]]
+    incidence_count[i] <- date_df[1, 2]
+  }
+  date_case_count_df <- data.frame(suffix_dates, incidence_count, stringsAsFactors = FALSE) %>%
+    mutate(
+      suffix_dates = as.Date(suffix_dates, "%Y-%m-%d"), 
+      incidence_count = parse_number(incidence_count)
+    )
+  return(date_case_count_df)
+}
+
+# run the functions above to parse daily incidences
+chicago_urls <- build_data_url("2020-04-18")
+
+chi_cov_data <- lapply(chicago_urls[[2]], FUN=grab_covid_data)
+
+latest_chicago_data <- parse_chicago_df(chi_cov_data, chicago_urls[[1]])
+
+latest_chicago_data %>%
+  ggplot(aes(x = suffix_dates, y = incidence_count)) +
+  geom_line() + geom_point()
+
+
+
+################################################################
+
+
+
+################################################################
+
 library(EpiModel)
 
 
@@ -42,64 +104,3 @@ param <- param.icm(inf.prob = 0.05, act.rate = 10, rec.rate = 1/20,
                    dr.rate = (7/365)/1000)
 
 sim <- icm(param, init, control)
-
-
-################################################################
-
-# Parses the first table from the chicago daily reports of COVID
-# cases. Need to expand the dates.
-
-
-
-
-################################################################
-library(xml2)
-
-
-# date in "2020-04-##" format
-build_data_url <- function(latest_date) {
-  
-  base_url <- "https://www.chicago.gov/city/en/sites/covid-19/home/latest-data/"
-  suffix_dates <- seq(as.Date("2020-03-23"), as.Date(latest_date), by="days")
-  dates_html <- sapply(suffix_dates, paste, "html", sep=".")
-  complete_urls <- sapply(base_url, paste, dates_html, sep="")
-  dates_url_list <- list()
-  dates_url_list[[1]] <- suffix_dates
-  dates_url_list[[2]] <- complete_urls
-  return(dates_url_list)
-}
-
-grab_covid_data <- function(web_url) {
-  webpage_url <- web_url
-  webpage <- xml2::read_html(webpage_url)
-  covid_data <- rvest::html_table(webpage)[[1]] %>%
-    tibble::as_tibble(.name_repair = "unique") # repair the repeated columns
-  return(as.data.frame(covid_data))
-}
-
-parse_chicago_df <- function(list_of_dfs, suffix_dates) {
-  
-  incidence_count <- c(rep(NA, length(list_of_dfs)))
-  for (i in 1:length(list_of_dfs)){
-    
-    date_df <- chi_cov_data[[i]]
-    incidence_count[i] <- date_df[1, 2]
-  }
-  date_case_count_df <- data.frame(suffix_dates, incidence_count, stringsAsFactors = FALSE) %>%
-    mutate(
-      suffix_dates = as.Date(suffix_dates, "%Y-%m-%d"), 
-      incidence_count = parse_number(incidence_count)
-    )
-  return(date_case_count_df)
-}
-
-# run the functions above to parse daily incidences
-chicago_urls <- build_data_url("2020-04-18")
-
-chi_cov_data <- lapply(chicago_urls[[2]], FUN=grab_covid_data)
-
-latest_chicago_data <- parse_chicago_df(chi_cov_data, chicago_urls[[1]])
-
-latest_chicago_data %>%
-  ggplot(aes(x = suffix_dates, y = incidence_count)) +
-  geom_line() + geom_point()
